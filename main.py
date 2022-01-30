@@ -95,11 +95,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                                   'You have to select a datapack folder (folder that contains pack.png, pack.mcmeta, etc)')
             return False
 
-        while self.scroll_layout_left.count():  # Чистим layout
+        while self.scroll_layout_left.count():
             child = self.scroll_layout_left.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
-        while self.scroll_layout_right.count():  # Чистим layout
+        while self.scroll_layout_right.count():
             child = self.scroll_layout_right.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
