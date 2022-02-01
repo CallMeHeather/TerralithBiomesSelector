@@ -11,6 +11,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
+        self.setFixedSize(self.width(), self.height())
         self.scroll_layout_left = QVBoxLayout()
         self.scroll_layout_left.setAlignment(Qt.AlignTop)
         self.scroll_layout_right = QVBoxLayout()
@@ -23,6 +24,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.AllToRightButton.clicked.connect(self.all_to_right)
         self.AllToLeftButton.clicked.connect(self.all_to_left)
         self.OutPathSelectButton.clicked.connect(self.select_out_path)
+        self.OutPackNameDisplay.textEdited.connect(self.out_pack_name_edited)
 
         got_pack = False
         while not got_pack:
@@ -31,12 +33,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 exit()
 
     def create_pack(self):
-        if os.path.exists(self.out_path):
+        if self.out_pack_name == '':
+            QMessageBox().warning(self, 'Invalid pack name!', 'Pack name can not be empty')
+            self.out_pack_name = self.pack_name + '_modified'
+            self.OutPackNameDisplay.setText(self.out_pack_name)
+            return
+
+        if os.path.exists(self.out_path + '/' + self.out_pack_name):
             dialog = QMessageBox.question(self, 'Overwrite?',
-                                          f'There is existing pack at {self.out_path}, do you want to overwrite it?')
+                                          f'There is existing pack at {self.out_path + "/" + self.out_pack_name},'
+                                          f'do you want to overwrite it?')
             if dialog == QMessageBox.No:
                 return
-            shutil.rmtree(self.out_path)
+            shutil.rmtree(self.out_path + '/' + self.out_pack_name)
 
         self.statusBar.showMessage('Creating biomes list...')
         selected = []
@@ -47,15 +56,24 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.statusBar.showMessage('Creating new overworld file...')
         new_overworld = self.overworld.copy()
         new_overworld["generator"]["biome_source"]["biomes"] = \
-            list(filter(lambda biome: biome["biome"] in selected, self.overworld["generator"]["biome_source"]["biomes"]))
+            list(
+                filter(lambda biome: biome["biome"] in selected, self.overworld["generator"]["biome_source"]["biomes"]))
         if self.randomSeedBox.isChecked():
             self.statusBar.showMessage('Generating seed...')
-            new_overworld["generator"]["seed"] = random.randint(-100000000000, 100000000000)
+            seed = random.randint(-100000000000000, 100000000000000)
+            new_overworld["generator"]["seed"] = seed
 
         self.statusBar.showMessage('Creating new pack...')
-        shutil.copytree(self.path, self.out_path)
-        with open(self.out_path + '/data/minecraft/dimension/overworld.json', 'w') as out:
+        shutil.copytree(self.path + '/' + self.pack_name, self.out_path + '/' + self.out_pack_name)
+        with open(self.out_path + '/' + self.out_pack_name + '/data/minecraft/dimension/overworld.json', 'w') as out:
             out.write(json.dumps(new_overworld))
+        with open(self.out_path + '/' + self.out_pack_name + '/' + 'info.txt', 'w') as info:
+            info.write('This datapack was modified!\n')
+            if self.randomSeedBox.isChecked():
+                info.write(f'Seed: {seed}\n')
+            info.write('Biomes:\n')
+            for i in selected:
+                info.write(f'{i}\n')
 
         self.statusBar.showMessage('Done!', 5000)
 
@@ -83,17 +101,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         path = dialog.getExistingDirectory(self, 'Select datapack folder', '../')
         if not path:
             return 'closed'
-        self.path = path
-        path = self.path + '/data/minecraft/dimension/overworld.json'
         try:
-            self.overworld = json.loads(open(path, 'r').read())
-            self.PathDisplay.setText(self.path)
-            self.out_path = '/'.join(self.path.split('/')[:-1]) + '/GeneratedPack'
-            self.OutPathDisplay.setText(self.out_path)
+            self.overworld = json.loads(open(path + '/data/minecraft/dimension/overworld.json', 'r').read())
         except FileNotFoundError:
             QMessageBox().warning(dialog, 'Please select a pack',
-                                  'You have to select a datapack folder (folder that contains pack.png, pack.mcmeta, etc)')
+                                  'You have to select a datapack folder'
+                                  '(folder that contains pack.png, pack.mcmeta, etc)')
             return False
+
+        self.path = '/'.join(path.split('/')[:-1])
+        self.pack_name = path.split('/')[-1]
+        self.PathDisplay.setText(self.path + '/' + self.pack_name)
+
+        self.out_pack_name = self.pack_name + '_modified'
+        self.out_path = self.path
+        self.OutPathDisplay.setText(self.out_path)
+        self.OutPackNameDisplay.setText(self.out_pack_name)
 
         while self.scroll_layout_left.count():
             child = self.scroll_layout_left.takeAt(0)
@@ -139,15 +162,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.unselected_buttons_group.addButton(button)
             self.scroll_layout_right.removeWidget(button)
             self.scroll_layout_left.addWidget(button)
-            self.scrollAreaWidgetContentsRight.setLayout(self.scroll_layout_right)
-            self.scrollAreaWidgetContentsLeft.setLayout(self.scroll_layout_left)
         elif button in self.unselected_buttons_group.buttons():
             self.unselected_buttons_group.removeButton(button)
             self.selected_buttons_group.addButton(button)
             self.scroll_layout_left.removeWidget(button)
             self.scroll_layout_right.addWidget(button)
-            self.scrollAreaWidgetContentsLeft.setLayout(self.scroll_layout_left)
-            self.scrollAreaWidgetContentsRight.setLayout(self.scroll_layout_right)
+        self.scrollAreaWidgetContentsLeft.setLayout(self.scroll_layout_left)
+        self.scrollAreaWidgetContentsRight.setLayout(self.scroll_layout_right)
+
+    def out_pack_name_edited(self):
+        print(self.OutPackNameDisplay.text())
+        self.out_pack_name = self.OutPackNameDisplay.text()
 
 
 if __name__ == '__main__':
